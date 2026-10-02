@@ -24,6 +24,9 @@ _EXTRA_FIELDS = (
     "buffered",
     "dropped_sequence",
     "summary",
+    "config",
+    "jump_s",
+    "ticks_skipped",
 )
 
 

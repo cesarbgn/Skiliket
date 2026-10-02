@@ -32,6 +32,9 @@ _MAGNUS_A, _MAGNUS_B = 17.625, 243.04
 # Constantes de tiempo (s) y desviaciones de los procesos AR(1).
 _TAU_T_ANOMALY, _SD_T_ANOMALY = 3 * 86400, 1.5  # anomalía día a día
 _TAU_T_NOISE, _SD_T_NOISE = 1200, 0.2
+# Inercia térmica: la temperatura responde a nubes y anomalía filtradas (paso bajo), no al
+# valor instantáneo; si no, un cambio de nubosidad en la tarde movería la hora de Tmax.
+_TAU_THERMAL = 3 * 3600
 _TAU_CLOUD, _SD_CLOUD = 3 * 3600, 0.25
 _TAU_DEW, _SD_DEW = 12 * 3600, 1.5
 _TAU_SYNOPTIC, _SD_SYNOPTIC, _MAX_SYNOPTIC = 2 * 86400, 1.5, 3.5
@@ -126,12 +129,16 @@ def _climatology(local: datetime) -> tuple[float, float, float, float, float]:
 def diurnal_shape(hour: float, h_min: float, h_max: float) -> float:
     """Ciclo diurno asimétrico normalizado: 0 en h_min (amanecer), 1 en h_max (tarde).
 
-    Subida rápida por la mañana (seno) y bajada tarde-noche que conserva pendiente hasta
-    el amanecer, para que el mínimo quede junto al amanecer y no en una meseta nocturna."""
+    Subida rápida por la mañana (seno). La bajada mezcla un decaimiento exponencial
+    (enfriamiento de ~1 °C/h desde el pico, más rápido al anochecer) con un coseno que
+    conserva pendiente hasta el amanecer: así el máximo no queda en una meseta por la tarde
+    ni el mínimo en una meseta nocturna, y el ruido no los desplaza horas."""
     if h_min <= hour <= h_max:
         return math.sin(math.pi / 2 * (hour - h_min) / (h_max - h_min))
     x = ((hour - h_max) % 24) / (24 - (h_max - h_min))
-    return 0.35 * math.cos(math.pi / 2 * x) + 0.65 * (1 + math.cos(math.pi * x)) / 2
+    exponential = (math.exp(-2.5 * x) - math.exp(-2.5)) / (1 - math.exp(-2.5))
+    cosine = 0.35 * math.cos(math.pi / 2 * x) + 0.65 * (1 + math.cos(math.pi * x)) / 2
+    return 0.5 * exponential + 0.5 * cosine
 
 
 def _wind_mean_ms(hour: float) -> float:
@@ -162,6 +169,8 @@ class WeatherModel:
         self._t_anomaly = rng.gauss(0, _SD_T_ANOMALY)
         self._t_noise = rng.gauss(0, _SD_T_NOISE)
         self._cloud_z = rng.gauss(0, 1)
+        self._cloud_thermal: float | None = None  # se inicia con la nubosidad del primer paso
+        self._t_anomaly_thermal = self._t_anomaly
         self._dew_anomaly = rng.gauss(0, _SD_DEW)
         self._synoptic = rng.gauss(0, _SD_SYNOPTIC)
         self._p_noise = rng.gauss(0, _SD_P_NOISE)
@@ -242,15 +251,20 @@ class WeatherModel:
         cloud = min(1.0, max(0.0, cloud_mean + _SD_CLOUD * self._cloud_z))
         if self._raining:
             cloud = max(cloud, 0.85)
+        if self._cloud_thermal is None:
+            self._cloud_thermal = cloud
+        self._cloud_thermal = _relax(self._cloud_thermal, cloud, dt, _TAU_THERMAL)
+        self._t_anomaly_thermal = _relax(self._t_anomaly_thermal, self._t_anomaly, dt, _TAU_THERMAL)
 
         # Temperatura: media estacional + ciclo diurno (amplitud menor con nubes) + ruido.
-        noon = solar.solar_noon_local_h(ts, site.lon, site.tz_offset_h)
-        sunrise = noon - solar.half_day_length_h(ts, site.lat)
-        h_min, h_max = sunrise + 0.3, noon + 2.3
-        amplitude = (tmax - tmin) * (1 - 0.45 * cloud)
+        sun = solar.sun_position(ts, site.lat, site.lon)
+        noon = sun.solar_noon_utc_h + site.tz_offset_h
+        sunrise = noon - sun.half_day_h
+        h_min, h_max = sunrise + 0.15, noon + 2.2
+        amplitude = (tmax - tmin) * (1 - 0.45 * self._cloud_thermal)
         temp = (
             (tmax + tmin) / 2
-            + self._t_anomaly
+            + self._t_anomaly_thermal
             + amplitude * (diurnal_shape(hour, h_min, h_max) - 0.5)
             + self._t_noise
             + self._rain_cool
@@ -290,8 +304,7 @@ class WeatherModel:
             direction = int(round(site.prevailing_wind_deg + self._dir_dev + self._dir_noise)) % 360
 
         # Radiación: cielo despejado x nubosidad (Kasten-Czeplak); 0 de noche.
-        elevation = solar.elevation_deg(ts, site.lat, site.lon)
-        clear = solar.clear_sky_ghi(elevation, site.elevation_m)
+        clear = solar.clear_sky_ghi(sun.elevation_deg, site.elevation_m)
         radiation = clear * (1 - 0.75 * cloud**3.4) * (0.3 if self._raining else 1.0)
 
         # Batería: carga solar hacia 13.8 V, descarga hacia 12.0 V (integración exacta en dt).
