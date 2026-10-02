@@ -1,0 +1,12 @@
+# Entornos y caches de Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.pytest_tmp/
+
+# Datos locales de ingesta (JSON Lines) y logs de pruebas
+data/
+
+# Variables de entorno reales (pueden contener hashes de claves)
+.env

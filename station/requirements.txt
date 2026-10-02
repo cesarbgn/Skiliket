@@ -1,0 +1,11 @@
+# Dependencias de ejecución, versiones exactas (incluye transitivas).
+# Probadas con Python 3.13.5 en el mismo venv que ingest_api/requirements-dev.txt.
+# httpx (no httpx2): el API usa httpx2 solo como cliente de pruebas de Starlette; son
+# módulos distintos (httpx / httpx2) y conviven sin conflicto.
+httpx==0.28.1
+anyio==4.15.1
+certifi==2026.7.22
+h11==0.16.0
+httpcore==1.0.9
+idna==3.20
+typing_extensions==4.16.0

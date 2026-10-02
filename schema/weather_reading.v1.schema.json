@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Device": {
+      "additionalProperties": false,
+      "properties": {
+        "battery_v": {
+          "anyOf": [
+            {
+              "maximum": 15,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Voltaje de batería, V",
+          "title": "Battery V"
+        },
+        "firmware": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Firmware"
+        }
+      },
+      "title": "Device",
+      "type": "object"
+    },
+    "Measurements": {
+      "additionalProperties": false,
+      "properties": {
+        "air_temperature_c": {
+          "description": "Temperatura del aire, °C",
+          "maximum": 60,
+          "minimum": -40,
+          "title": "Air Temperature C",
+          "type": "number"
+        },
+        "relative_humidity_pct": {
+          "description": "Humedad relativa, %",
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Relative Humidity Pct",
+          "type": "number"
+        },
+        "station_pressure_hpa": {
+          "description": "Presión a la altura de la estación, hPa",
+          "maximum": 1100,
+          "minimum": 500,
+          "title": "Station Pressure Hpa",
+          "type": "number"
+        },
+        "wind_speed_ms": {
+          "description": "Velocidad media del viento, m/s",
+          "maximum": 75,
+          "minimum": 0,
+          "title": "Wind Speed Ms",
+          "type": "number"
+        },
+        "wind_gust_ms": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ráfaga máxima del intervalo, m/s; >= wind_speed_ms",
+          "title": "Wind Gust Ms"
+        },
+        "wind_direction_deg": {
+          "anyOf": [
+            {
+              "maximum": 359,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dirección de procedencia del viento, grados; null admitido (calma)",
+          "title": "Wind Direction Deg"
+        },
+        "precipitation_mm": {
+          "description": "Precipitación acumulada en el intervalo, mm",
+          "maximum": 200,
+          "minimum": 0,
+          "title": "Precipitation Mm",
+          "type": "number"
+        },
+        "solar_radiation_wm2": {
+          "anyOf": [
+            {
+              "maximum": 1500,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Radiación solar global, W/m²",
+          "title": "Solar Radiation Wm2"
+        }
+      },
+      "required": [
+        "air_temperature_c",
+        "relative_humidity_pct",
+        "station_pressure_hpa",
+        "wind_speed_ms",
+        "precipitation_mm"
+      ],
+      "title": "Measurements",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Lectura de una estación meteorológica, esquema v1. Reglas que JSON Schema no\nexpresa y el API sí aplica: wind_gust_ms >= wind_speed_ms y timestamp dentro de\nla ventana configurada (por defecto <= 5 min en el futuro y <= 7 días en el pasado).",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "station_id": {
+      "examples": [
+        "GDL-001"
+      ],
+      "pattern": "^[A-Z]{3}-[0-9]{3}$",
+      "title": "Station Id",
+      "type": "string"
+    },
+    "timestamp": {
+      "description": "Instante de la medición, RFC 3339 en UTC con sufijo Z",
+      "examples": [
+        "2026-10-01T21:15:00Z"
+      ],
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?Z$",
+      "title": "Timestamp",
+      "type": "string"
+    },
+    "sequence": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Contador para detectar huecos",
+      "title": "Sequence"
+    },
+    "interval_s": {
+      "description": "Duración del intervalo medido, s",
+      "maximum": 3600,
+      "minimum": 10,
+      "title": "Interval S",
+      "type": "integer"
+    },
+    "measurements": {
+      "$ref": "#/$defs/Measurements"
+    },
+    "device": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Device"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "schema_version",
+    "station_id",
+    "timestamp",
+    "interval_s",
+    "measurements"
+  ],
+  "title": "WeatherReading",
+  "type": "object"
+}
