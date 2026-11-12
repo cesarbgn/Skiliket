@@ -6,7 +6,8 @@ Prototipo del TEC de Monterrey GDA. Una estación meteorológica emulada envía 
 
 - **Fase A — cerrada y verificada:** contrato v1 (`schema/`) y API de ingesta (`ingest_api/`), 98 pruebas en verde y verificación contra uvicorn real. El registro del trabajo (propuesta, reportes y volcados de revisión) está en [`docs/historial/`](docs/historial/).
 - **Fase B — terminada:** estación simulada (`station/`). Incluye el modelo meteorológico de GDL, el emisor con reintentos y búfer, el modo réplica y la inyección de fallas. Pruebas en verde en `station/`, `ingest_api/` y `contract_tests/`, y verificación con uvicorn y 3 procesos de estación reales. Decisiones en [`docs/adr/0002-estacion-simulada.md`](docs/adr/0002-estacion-simulada.md).
-- **Pendiente:** Docker/compose (Fase C) y diagramas C4 (Fase D).
+- **Fase C — en curso:** imágenes Docker (`ingest_api/Dockerfile`, `station/Dockerfile`), `docker-compose.yml` con 3 estaciones y prueba de estrés (`scripts/stress_docker.py`).
+- **Pendiente:** diagramas C4 (Fase D).
 
 ## Estructura
 
@@ -84,6 +85,27 @@ Todas están en [`station/.env.example`](station/.env.example), con sus valores 
 | `BUFFER_MAX` | `1000` | Entero de 1 a 1,000,000; al llenarse se descarta la lectura más vieja |
 | `MAX_READINGS` | `0` (sin límite) | Entero ≥ 0; termina al entregar o descartar esa cantidad |
 | `HTTP_CONNECT_TIMEOUT_S`, `HTTP_READ_TIMEOUT_S` | `5`, `10` | Mayor que 0, máximo 120 |
+
+## Docker
+
+Requiere Docker Desktop (o Docker Engine con Compose v2).
+
+```powershell
+copy .env.example .env   # rellena STATION_KEY_HASHES y STATION_KEY_GDL_00N (gen_station_key.py, 3 veces)
+docker compose up --build
+```
+
+- El API queda en http://127.0.0.1:8000 (Swagger en `/docs`). Las lecturas se guardan en el volumen `readings`.
+- Las variables de la estación (`INTERVAL_S`, `REPLAY_HOURS`, `FAULT_RATE`, `MAX_READINGS`…) también se toman de `.env`.
+- `docker compose down -v` borra el volumen.
+
+### Prueba de estrés
+
+```powershell
+.\.venv\Scripts\python.exe scripts\stress_docker.py --stations 10 --intruders 2 --hours 24 --fault-rate 0.3
+```
+
+Lanza N estaciones concurrentes (con fallas inyectadas), intrusos con claves no registradas (401) y un suplantador (403) contra un solo API. Genera las claves en memoria y cruza el log del API, el resumen de cada estación y el JSONL. Resultados en `data/stress/<run>/results.json`; el código de salida es 0 solo si todas las comprobaciones pasan.
 
 ## Pruebas
 

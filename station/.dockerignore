@@ -1,0 +1,12 @@
+# Solo entra a la imagen el código de ejecución.
+tests/
+**/__pycache__/
+**/*.py[cod]
+.pytest_cache/
+.pytest_tmp/
+pytest.ini
+requirements-dev.txt
+.env
+.env.*
+Dockerfile
+.dockerignore

@@ -1,0 +1,57 @@
+# API de ingesta + 3 estaciones simuladas. Las claves salen de .env (ignorado por git):
+# STATION_KEY_HASHES para el API y STATION_KEY_GDL_00N en claro para cada estación.
+# Ver .env.example y README. La prueba de estrés usa su propio compose (scripts/stress_docker.py).
+name: skilliket
+
+x-station: &station
+  build: ./station
+  image: skilliket/station:local
+  depends_on:
+    api:
+      condition: service_healthy
+  restart: "no"
+
+x-station-env: &station-env
+  INGEST_URL: http://api:8000/v1/readings
+  INTERVAL_S: ${INTERVAL_S:-60}
+  REPLAY_HOURS: ${REPLAY_HOURS:-0}
+  REPLAY_DURATION_MIN: ${REPLAY_DURATION_MIN:-2}
+  FAULT_RATE: ${FAULT_RATE:-0}
+  MAX_READINGS: ${MAX_READINGS:-0}
+
+services:
+  api:
+    build: ./ingest_api
+    image: skilliket/ingest-api:local
+    environment:
+      STATION_KEY_HASHES: ${STATION_KEY_HASHES:?define STATION_KEY_HASHES en .env}
+      MAX_FUTURE_SKEW_S: ${MAX_FUTURE_SKEW_S:-300}
+      MAX_PAST_AGE_S: ${MAX_PAST_AGE_S:-604800}
+    volumes:
+      - readings:/data
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  station-gdl-001:
+    <<: *station
+    environment:
+      <<: *station-env
+      STATION_ID: GDL-001
+      STATION_KEY: ${STATION_KEY_GDL_001:?define STATION_KEY_GDL_001 en .env}
+
+  station-gdl-002:
+    <<: *station
+    environment:
+      <<: *station-env
+      STATION_ID: GDL-002
+      STATION_KEY: ${STATION_KEY_GDL_002:?define STATION_KEY_GDL_002 en .env}
+
+  station-gdl-003:
+    <<: *station
+    environment:
+      <<: *station-env
+      STATION_ID: GDL-003
+      STATION_KEY: ${STATION_KEY_GDL_003:?define STATION_KEY_GDL_003 en .env}
+
+volumes:
+  readings:

@@ -10,3 +10,10 @@ data/
 
 # Variables de entorno reales (pueden contener hashes de claves)
 .env
+# Documentos academicos, expediente y agentes
+paper/
+references/
+docs/expediente-isec2027/
+docs/paper/
+*.pdf
+.agents/
